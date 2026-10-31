@@ -112,12 +112,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/fireba
 import { getAuth, onAuthStateChanged, signInWithPopup, signInWithRedirect, GoogleAuthProvider, signOut } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, setDoc, deleteDoc, onSnapshot, writeBatch } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
-// Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
-
-// Your web app's Firebase configuration
+/* ====== PLAK HIER JE FIREBASE-CONFIGURATIE ======
+   Firebase console > Projectinstellingen > Je apps > Web-app > firebaseConfig.
+   Zolang apiKey met VERVANG begint, werkt de pagina lokaal (zonder synchronisatie). */
 const firebaseConfig = {
   apiKey: "AIzaSyCxIW1883JaV0roXDju4yJ3O2-lcX9hheA",
   authDomain: "voorraadkast-4d69c.firebaseapp.com",
@@ -126,9 +123,8 @@ const firebaseConfig = {
   messagingSenderId: "1060007874594",
   appId: "1:1060007874594:web:4fa7a14b04cc801e7cba7b"
 };
+/* ================================================ */
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
 const CLOUD = !firebaseConfig.apiKey.startsWith('VERVANG');
 
 const LOCATIES = [];
