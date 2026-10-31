@@ -8,11 +8,13 @@
 :root{--bg:#eef1ec;--card:#fff;--ink:#1f2a24;--mute:#5d6a62;--line:#cfd6cf;--accent:#1f5f6b;--on-accent:#fff;--warn:#9a5b00;--warn-bg:#fdf0d9;--bad:#a8231b;--bad-bg:#fbe3e0}
 @media (prefers-color-scheme:dark){:root{--bg:#161c18;--card:#202823;--ink:#e8eee9;--mute:#9aa8a0;--line:#37423b;--accent:#6bbac8;--on-accent:#0d2227;--warn:#f0b865;--warn-bg:#3a2d15;--bad:#ff9d94;--bad-bg:#3d1b18}}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
 main{max-width:980px;margin:0 auto;padding:20px 16px 60px}
 h1{font-size:1.9rem;margin:0 0 4px}
 h2{font-size:1.1rem;margin:0 0 12px}
-.sub{color:var(--mute);margin:0 0 20px}
+.sub{color:var(--mute);margin:0 0 12px}
+.bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 16px;min-height:30px}
 section{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:16px;margin-bottom:16px}
 label{display:block;font-size:.85rem;color:var(--mute);margin-bottom:3px}
 input,select,button{font:inherit;color:inherit}
@@ -28,7 +30,7 @@ button[aria-pressed="true"]{background:var(--accent);color:var(--on-accent);bord
 .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;align-items:center}
 .count{color:var(--mute);margin:0 0 10px}
 .list{display:grid;gap:8px}
-.item{display:grid;grid-template-columns:1fr auto;gap:8px 16px;padding:12px;border:1px solid var(--line);border-radius:6px;border-left-width:6px}
+.item{display:grid;grid-template-columns:1fr auto;gap:8px 16px;padding:12px;border:1px solid var(--line);border-radius:6px;border-left-width:6px;background:var(--card)}
 .item.soon{border-left-color:var(--warn)}.item.expired{border-left-color:var(--bad)}.item.ok{border-left-color:var(--accent)}
 .name{font-weight:600}
 .meta{color:var(--mute);font-size:.9rem}
@@ -44,7 +46,16 @@ button[aria-pressed="true"]{background:var(--accent);color:var(--on-accent);bord
 <main>
 <h1>Voorraadkast</h1>
 <p class="sub">Wat ligt er waar, hoeveel is er nog en tot wanneer is het houdbaar.</p>
+<div class="bar"><span id="bar-tekst" class="meta"></span><button id="uitlog" class="small" hidden>Uitloggen</button></div>
 
+<section id="login" hidden>
+<h2>Inloggen</h2>
+<p class="meta" style="margin-top:0">Log in met Google om je voorraad op al je apparaten te zien.</p>
+<button class="primary" id="login-knop">Inloggen met Google</button>
+<p id="login-melding" class="meta" role="status"></p>
+</section>
+
+<div id="app">
 <section aria-labelledby="t-form">
 <h2 id="t-form">Product toevoegen</h2>
 <div class="grid">
@@ -86,16 +97,40 @@ button[aria-pressed="true"]{background:var(--accent);color:var(--on-accent);bord
 
 <section style="margin-top:24px">
 <h2>Back-up</h2>
-<p class="meta" style="margin-top:0">De gegevens staan in deze browser. Maak regelmatig een back-up, of neem de gegevens mee naar een ander apparaat.</p>
+<p class="meta" style="margin-top:0">Download een kopie van je voorraad, of zet een eerder gemaakte kopie terug.</p>
 <div class="row" style="margin-top:0">
  <button id="export">Exporteren (JSON)</button>
  <button id="import">Importeren</button>
  <input id="importfile" type="file" accept="application/json" hidden>
 </div>
 </section>
+</div>
 </main>
 
-<script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+import { getAuth, onAuthStateChanged, signInWithPopup, signInWithRedirect, GoogleAuthProvider, signOut } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, setDoc, deleteDoc, onSnapshot, writeBatch } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyCxIW1883JaV0roXDju4yJ3O2-lcX9hheA",
+  authDomain: "voorraadkast-4d69c.firebaseapp.com",
+  projectId: "voorraadkast-4d69c",
+  storageBucket: "voorraadkast-4d69c.firebasestorage.app",
+  messagingSenderId: "1060007874594",
+  appId: "1:1060007874594:web:4fa7a14b04cc801e7cba7b"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const CLOUD = !firebaseConfig.apiKey.startsWith('VERVANG');
+
 const LOCATIES = [];
 for (let p = 1; p <= 3; p++) for (let b = 1; b <= 3; b++) LOCATIES.push(`Trapkast grote lade plank ${p} bak ${b}`);
 for (let p = 1; p <= 3; p++) LOCATIES.push(`Trapkast kleine lade plank ${p}`);
@@ -103,13 +138,81 @@ LOCATIES.push('Keukenlade groot', 'Keukenlade klein');
 
 const KEY = 'voorraadkast-v1';
 const $ = id => document.getElementById(id);
-let items = [];
-let bewerkId = null;
+let items = [], bewerkId = null, uid = null, email = '', db = null, auth = null, unsub = null;
 
-try { items = JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) { items = []; }
-function bewaar() { try { localStorage.setItem(KEY, JSON.stringify(items)); } catch (e) { melding('Opslaan in de browser is mislukt.'); } }
+const nieuwId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const norm = x => ({ id: x.id || nieuwId(), naam: String(x.naam), aantal: +x.aantal || 0, eenheid: x.eenheid || 'stuks', loc: x.loc, datum: x.datum || '' });
 function melding(t) { $('melding').textContent = t; }
+const fout = e => melding('Opslaan in de cloud is mislukt (' + (e.code || e.message) + ').');
 
+/* ---------- Opslag: lokaal (browser) of cloud (Firestore) ---------- */
+const lokaal = {
+  laad() { try { items = JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) { items = []; } },
+  bewaar() { try { localStorage.setItem(KEY, JSON.stringify(items)); } catch (e) { melding('Opslaan in de browser is mislukt.'); } render(); },
+  zet(i) { const x = items.findIndex(a => a.id === i.id); if (x < 0) items.push(i); else items[x] = i; this.bewaar(); },
+  weg(id) { items = items.filter(a => a.id !== id); this.bewaar(); },
+  async alles(l) { items = l; this.bewaar(); }
+};
+const pad = id => doc(db, 'users', uid, 'items', id);
+async function schrijf(ops) {            // ops: [{del:id} | {set:item}], in porties van 400
+  for (let k = 0; k < ops.length; k += 400) {
+    const b = writeBatch(db);
+    ops.slice(k, k + 400).forEach(o => o.del ? b.delete(pad(o.del)) : b.set(pad(o.set.id), o.set));
+    await b.commit();
+  }
+}
+const wolk = {
+  zet(i) { setDoc(pad(i.id), i).catch(fout); },
+  weg(id) { deleteDoc(pad(id)).catch(fout); },
+  async alles(l) {
+    const nieuw = new Set(l.map(x => x.id));
+    await schrijf([...items.filter(x => !nieuw.has(x.id)).map(x => ({ del: x.id })), ...l.map(x => ({ set: x }))]);
+  }
+};
+const store = () => (CLOUD && uid) ? wolk : lokaal;
+
+/* ---------- Inloggen ---------- */
+function toon() {
+  const binnen = !CLOUD || !!uid;
+  $('app').hidden = !binnen; $('login').hidden = !(CLOUD && !uid); $('uitlog').hidden = !uid;
+  $('bar-tekst').textContent = !CLOUD ? 'Synchronisatie staat uit: gegevens staan alleen in deze browser.' : uid ? 'Ingelogd als ' + email : '';
+}
+if (CLOUD) {
+  const app = initializeApp(firebaseConfig);
+  auth = getAuth(app);
+  try { db = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) }); }
+  catch (e) { db = initializeFirestore(app, {}); }
+  $('login-knop').onclick = async () => {
+    const p = new GoogleAuthProvider(); $('login-melding').textContent = '';
+    try { await signInWithPopup(auth, p); }
+    catch (e) {
+      if (['auth/popup-blocked', 'auth/operation-not-supported-in-this-environment'].includes(e.code)) signInWithRedirect(auth, p);
+      else if (e.code !== 'auth/popup-closed-by-user') $('login-melding').textContent = 'Inloggen mislukt (' + e.code + ').';
+    }
+  };
+  $('uitlog').onclick = () => signOut(auth);
+  onAuthStateChanged(auth, user => {
+    if (unsub) { unsub(); unsub = null; }
+    uid = user ? user.uid : null; email = user ? (user.email || '') : '';
+    items = []; toon(); render();
+    if (user) {
+      unsub = onSnapshot(collection(db, 'users', uid, 'items'),
+        snap => { items = snap.docs.map(d => ({ ...d.data(), id: d.id })); render(); },
+        e => melding('Laden uit de cloud is mislukt (' + (e.code || e.message) + ').'));
+      migreer();
+    }
+  });
+} else { lokaal.laad(); toon(); }
+
+function migreer() {                     // lokale lijst uit deze browser naar het account zetten
+  let l = []; try { l = JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) {}
+  if (!l.length || sessionStorage.getItem('skip-mig')) return;
+  if (confirm(`Er staan ${l.length} producten in deze browser. Uploaden naar je account?`)) {
+    schrijf(l.map(x => ({ set: norm(x) }))).then(() => { localStorage.removeItem(KEY); melding(`${l.length} producten geüpload.`); }).catch(fout);
+  } else sessionStorage.setItem('skip-mig', '1');
+}
+
+/* ---------- Weergave ---------- */
 function vul(sel, eerste) {
   sel.innerHTML = '';
   if (eerste) sel.add(new Option(eerste, ''));
@@ -132,10 +235,11 @@ function status(datum) {
 const fmt = d => new Date(d + 'T00:00:00').toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' });
 const getal = n => Number(n).toLocaleString('nl-NL', { maximumFractionDigits: 2 });
 
+let sortKey = 'datum', sortDir = 1;
 function filtered() {
   const q = $('z-tekst').value.trim().toLowerCase();
   const loc = $('z-loc').value, hb = $('z-hb').value;
-  let r = items.filter(i => {
+  const r = items.filter(i => {
     const d = dagen(i.datum);
     const tekst = `${i.naam} ${i.loc} ${i.datum || ''} ${i.datum ? fmt(i.datum) : ''}`.toLowerCase();
     if (q && !q.split(/\s+/).every(w => tekst.includes(w))) return false;
@@ -147,7 +251,7 @@ function filtered() {
   });
   const cmp = {
     naam: (a, b) => a.naam.localeCompare(b.naam, 'nl'),
-    datum: (a, b) => a.datum.localeCompare(b.datum) || a.naam.localeCompare(b.naam, 'nl'),
+    datum: (a, b) => (a.datum || '').localeCompare(b.datum || '') || a.naam.localeCompare(b.naam, 'nl'),
     loc: (a, b) => LOCATIES.indexOf(a.loc) - LOCATIES.indexOf(b.loc) || a.naam.localeCompare(b.naam, 'nl')
   };
   return r.sort((a, b) => {
@@ -175,9 +279,8 @@ function render() {
     m.textContent = `${i.loc} · ${i.datum ? 'Houdbaar tot ' + s.t : s.t}`;
     info.append(n, m);
     const q = document.createElement('div'); q.className = 'qty';
-    const min = knop('−', 'Eén minder', () => wijzig(i.id, -1)), plus = knop('+', 'Eén meer', () => wijzig(i.id, 1));
     const b = document.createElement('b'); b.textContent = `${getal(i.aantal)} ${i.eenheid}`;
-    q.append(min, b, plus);
+    q.append(knop('−', 'Eén minder', () => wijzig(i.id, -1)), b, knop('+', 'Eén meer', () => wijzig(i.id, 1)));
     const a = document.createElement('div'); a.className = 'acts';
     a.append(knop('Bewerken', null, () => start(i.id)), knop('Verwijderen', null, () => verwijder(i.id)));
     el.append(info, q, a); lijst.append(el);
@@ -188,14 +291,14 @@ function knop(t, label, fn) {
   if (label) b.setAttribute('aria-label', label); b.onclick = fn; return b;
 }
 
+/* ---------- Acties ---------- */
 function wijzig(id, delta) {
   const i = items.find(x => x.id === id); if (!i) return;
-  i.aantal = Math.max(0, Math.round((i.aantal + delta) * 100) / 100);
-  bewaar(); render();
+  store().zet({ ...i, aantal: Math.max(0, Math.round((i.aantal + delta) * 100) / 100) });
 }
 function verwijder(id) {
   const i = items.find(x => x.id === id);
-  if (i && confirm(`"${i.naam}" verwijderen?`)) { items = items.filter(x => x.id !== id); bewaar(); render(); }
+  if (i && confirm(`"${i.naam}" verwijderen?`)) store().weg(id);
 }
 function start(id) {
   const i = items.find(x => x.id === id); if (!i) return;
@@ -215,14 +318,12 @@ $('opslaan').onclick = () => {
   if (!naam) { melding('Vul een productnaam in.'); $('f-naam').focus(); return; }
   if (isNaN(aantal) || aantal < 0) { melding('Vul een geldige hoeveelheid in.'); $('f-aantal').focus(); return; }
   const data = { naam, aantal, eenheid: $('f-eenheid').value, loc: $('f-loc').value, datum: $('f-datum').value };
-  if (bewerkId) { Object.assign(items.find(x => x.id === bewerkId), data); melding('Wijzigingen opgeslagen.'); }
-  else { items.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), ...data }); melding(`"${naam}" toegevoegd.`); }
-  bewaar(); reset(); render();
+  if (bewerkId) { store().zet({ ...items.find(x => x.id === bewerkId), ...data }); melding('Wijzigingen opgeslagen.'); }
+  else { store().zet({ id: nieuwId(), ...data }); melding(`"${naam}" toegevoegd.`); }
+  reset();
 };
 
 ['z-tekst', 'z-loc', 'z-hb'].forEach(id => $(id).addEventListener('input', render));
-
-let sortKey = 'datum', sortDir = 1;
 function sortKnoppen() {
   [['naam', 'Alfabetisch'], ['datum', 'Houdbaarheid'], ['loc', 'Locatie']].forEach(([k, t]) => {
     const b = $('s-' + k), actief = sortKey === k;
@@ -236,6 +337,7 @@ function sortKnoppen() {
 });
 sortKnoppen();
 
+/* ---------- Back-up ---------- */
 $('export').onclick = () => {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([JSON.stringify(items, null, 2)], { type: 'application/json' }));
@@ -245,13 +347,12 @@ $('import').onclick = () => $('importfile').click();
 $('importfile').onchange = e => {
   const f = e.target.files[0]; if (!f) return;
   const r = new FileReader();
-  r.onload = () => {
+  r.onload = async () => {
     try {
       const d = JSON.parse(r.result);
       if (!Array.isArray(d) || !d.every(x => x && typeof x.naam === 'string' && x.loc)) throw 0;
       if (!confirm(`${d.length} producten importeren? Dit vervangt je huidige lijst.`)) return;
-      items = d.map(x => ({ id: x.id || Math.random().toString(36).slice(2), naam: x.naam, aantal: +x.aantal || 0, eenheid: x.eenheid || 'stuks', loc: x.loc, datum: x.datum || '' }));
-      bewaar(); render(); melding('Import gelukt.');
+      await store().alles(d.map(norm)); melding('Import gelukt.');
     } catch (err) { melding('Dit bestand kon niet worden gelezen als voorraadlijst.'); }
   };
   r.readAsText(f); e.target.value = '';
