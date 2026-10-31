@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voorraadkast</title>
+<style>
+:root{--bg:#eef1ec;--card:#fff;--ink:#1f2a24;--mute:#5d6a62;--line:#cfd6cf;--accent:#1f5f6b;--on-accent:#fff;--warn:#9a5b00;--warn-bg:#fdf0d9;--bad:#a8231b;--bad-bg:#fbe3e0}
+@media (prefers-color-scheme:dark){:root{--bg:#161c18;--card:#202823;--ink:#e8eee9;--mute:#9aa8a0;--line:#37423b;--accent:#6bbac8;--on-accent:#0d2227;--warn:#f0b865;--warn-bg:#3a2d15;--bad:#ff9d94;--bad-bg:#3d1b18}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:980px;margin:0 auto;padding:20px 16px 60px}
+h1{font-size:1.9rem;margin:0 0 4px}
+h2{font-size:1.1rem;margin:0 0 12px}
+.sub{color:var(--mute);margin:0 0 20px}
+section{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:16px;margin-bottom:16px}
+label{display:block;font-size:.85rem;color:var(--mute);margin-bottom:3px}
+input,select,button{font:inherit;color:inherit}
+input,select{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card)}
+:focus-visible{outline:3px solid var(--accent);outline-offset:1px}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.wide{grid-column:span 2}
+@media (max-width:480px){.wide{grid-column:auto}}
+button{cursor:pointer;border:1px solid var(--line);background:var(--card);padding:8px 14px;border-radius:6px}
+button.primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent);font-weight:600}
+button.small{padding:3px 10px}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;align-items:center}
+.count{color:var(--mute);margin:0 0 10px}
+.list{display:grid;gap:8px}
+.item{display:grid;grid-template-columns:1fr auto;gap:8px 16px;padding:12px;border:1px solid var(--line);border-radius:6px;border-left-width:6px}
+.item.soon{border-left-color:var(--warn)}.item.expired{border-left-color:var(--bad)}.item.ok{border-left-color:var(--accent)}
+.name{font-weight:600}
+.meta{color:var(--mute);font-size:.9rem}
+.tag{display:inline-block;padding:0 8px;border-radius:99px;font-size:.8rem;margin-left:6px}
+.tag.soon{background:var(--warn-bg);color:var(--warn)}.tag.expired{background:var(--bad-bg);color:var(--bad)}
+.qty{display:flex;align-items:center;gap:6px;justify-self:end}
+.qty b{min-width:4.5em;text-align:center}
+.acts{grid-column:1/-1;display:flex;gap:8px}
+.empty{color:var(--mute);padding:20px;text-align:center}
+</style>
+</head>
+<body>
+<main>
+<h1>Voorraadkast</h1>
+<p class="sub">Wat ligt er waar, hoeveel is er nog en tot wanneer is het houdbaar.</p>
+
+<section aria-labelledby="t-form">
+<h2 id="t-form">Product toevoegen</h2>
+<div class="grid">
+ <div class="wide"><label for="f-naam">Product</label><input id="f-naam" autocomplete="off"></div>
+ <div><label for="f-aantal">Hoeveelheid</label><input id="f-aantal" type="number" min="0" step="any" value="1"></div>
+ <div><label for="f-eenheid">Eenheid</label>
+  <select id="f-eenheid"><option>stuks</option><option>g</option><option>kg</option><option>ml</option><option>l</option><option>pak</option><option>blik</option><option>pot</option><option>fles</option></select></div>
+ <div class="wide"><label for="f-loc">Locatie</label><select id="f-loc"></select></div>
+ <div><label for="f-datum">Houdbaar tot</label><input id="f-datum" type="date"></div>
+</div>
+<div class="row">
+ <button class="primary" id="opslaan">Product opslaan</button>
+ <button id="annuleer" hidden>Bewerken annuleren</button>
+ <span id="melding" class="meta" role="status"></span>
+</div>
+</section>
+
+<section aria-labelledby="t-zoek">
+<h2 id="t-zoek">Zoeken</h2>
+<div class="grid">
+ <div class="wide"><label for="z-tekst">Product, locatie of datum</label><input id="z-tekst" type="search" placeholder="bijv. pasta, plank 2 of 2027"></div>
+ <div><label for="z-loc">Locatie</label><select id="z-loc"></select></div>
+ <div><label for="z-hb">Houdbaarheid</label>
+  <select id="z-hb">
+   <option value="">Alles</option><option value="verlopen">Verlopen</option><option value="7">Binnen 7 dagen</option>
+   <option value="30">Binnen 30 dagen</option><option value="90">Binnen 90 dagen</option><option value="geen">Geen datum</option>
+  </select></div>
+ <div><label for="z-sort">Sorteren op</label>
+  <select id="z-sort"><option value="datum">Houdbaarheid</option><option value="naam">Product</option><option value="loc">Locatie</option></select></div>
+</div>
+</section>
+
+<p class="count" id="telling" aria-live="polite"></p>
+<div class="list" id="lijst"></div>
+
+<section style="margin-top:24px">
+<h2>Back-up</h2>
+<p class="meta" style="margin-top:0">De gegevens staan in deze browser. Maak regelmatig een back-up, of neem de gegevens mee naar een ander apparaat.</p>
+<div class="row" style="margin-top:0">
+ <button id="export">Exporteren (JSON)</button>
+ <button id="import">Importeren</button>
+ <input id="importfile" type="file" accept="application/json" hidden>
+</div>
+</section>
+</main>
+
+<script>
+const LOCATIES = [];
+for (let p = 1; p <= 3; p++) for (let b = 1; b <= 3; b++) LOCATIES.push(`Trapkast grote lade plank ${p} bak ${b}`);
+for (let p = 1; p <= 3; p++) LOCATIES.push(`Trapkast kleine lade plank ${p}`);
+LOCATIES.push('Keukenlade groot', 'Keukenlade klein');
+
+const KEY = 'voorraadkast-v1';
+const $ = id => document.getElementById(id);
+let items = [];
+let bewerkId = null;
+
+try { items = JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) { items = []; }
+function bewaar() { try { localStorage.setItem(KEY, JSON.stringify(items)); } catch (e) { melding('Opslaan in de browser is mislukt.'); } }
+function melding(t) { $('melding').textContent = t; }
+
+function vul(sel, eerste) {
+  sel.innerHTML = '';
+  if (eerste) sel.add(new Option(eerste, ''));
+  LOCATIES.forEach(l => sel.add(new Option(l, l)));
+}
+vul($('f-loc')); vul($('z-loc'), 'Alle locaties');
+
+function dagen(datum) {
+  if (!datum) return null;
+  const nu = new Date(); nu.setHours(0, 0, 0, 0);
+  return Math.round((new Date(datum + 'T00:00:00') - nu) / 864e5);
+}
+function status(datum) {
+  const d = dagen(datum);
+  if (d === null) return { k: 'ok', t: 'Geen houdbaarheidsdatum' };
+  if (d < 0) return { k: 'expired', t: 'Verlopen', tag: 'Verlopen' };
+  if (d <= 30) return { k: 'soon', t: fmt(datum), tag: d === 0 ? 'Vandaag' : `Nog ${d} dag${d === 1 ? '' : 'en'}` };
+  return { k: 'ok', t: fmt(datum) };
+}
+const fmt = d => new Date(d + 'T00:00:00').toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' });
+const getal = n => Number(n).toLocaleString('nl-NL', { maximumFractionDigits: 2 });
+
+function filtered() {
+  const q = $('z-tekst').value.trim().toLowerCase();
+  const loc = $('z-loc').value, hb = $('z-hb').value, sort = $('z-sort').value;
+  let r = items.filter(i => {
+    const d = dagen(i.datum);
+    const tekst = `${i.naam} ${i.loc} ${i.datum || ''} ${i.datum ? fmt(i.datum) : ''}`.toLowerCase();
+    if (q && !q.split(/\s+/).every(w => tekst.includes(w))) return false;
+    if (loc && i.loc !== loc) return false;
+    if (hb === 'verlopen' && !(d !== null && d < 0)) return false;
+    if (hb === 'geen' && d !== null) return false;
+    if (['7', '30', '90'].includes(hb) && !(d !== null && d >= 0 && d <= +hb)) return false;
+    return true;
+  });
+  const cmp = {
+    naam: (a, b) => a.naam.localeCompare(b.naam, 'nl'),
+    loc: (a, b) => LOCATIES.indexOf(a.loc) - LOCATIES.indexOf(b.loc) || a.naam.localeCompare(b.naam, 'nl'),
+    datum: (a, b) => (a.datum || '9999').localeCompare(b.datum || '9999') || a.naam.localeCompare(b.naam, 'nl')
+  };
+  return r.sort(cmp[sort]);
+}
+
+function render() {
+  const r = filtered(), lijst = $('lijst');
+  $('telling').textContent = `${r.length} van ${items.length} product${items.length === 1 ? '' : 'en'}`;
+  lijst.innerHTML = '';
+  if (!r.length) {
+    const e = document.createElement('div'); e.className = 'empty';
+    e.textContent = items.length ? 'Niets gevonden. Pas de zoekopdracht of filters aan.' : 'Nog geen producten. Voeg hierboven je eerste product toe.';
+    lijst.append(e); return;
+  }
+  r.forEach(i => {
+    const s = status(i.datum);
+    const el = document.createElement('div'); el.className = 'item ' + s.k;
+    const info = document.createElement('div');
+    const n = document.createElement('div'); n.className = 'name'; n.textContent = i.naam;
+    if (s.tag) { const t = document.createElement('span'); t.className = 'tag ' + s.k; t.textContent = s.tag; n.append(t); }
+    const m = document.createElement('div'); m.className = 'meta';
+    m.textContent = `${i.loc} · ${i.datum ? 'Houdbaar tot ' + s.t : s.t}`;
+    info.append(n, m);
+    const q = document.createElement('div'); q.className = 'qty';
+    const min = knop('−', 'Eén minder', () => wijzig(i.id, -1)), plus = knop('+', 'Eén meer', () => wijzig(i.id, 1));
+    const b = document.createElement('b'); b.textContent = `${getal(i.aantal)} ${i.eenheid}`;
+    q.append(min, b, plus);
+    const a = document.createElement('div'); a.className = 'acts';
+    a.append(knop('Bewerken', null, () => start(i.id)), knop('Verwijderen', null, () => verwijder(i.id)));
+    el.append(info, q, a); lijst.append(el);
+  });
+}
+function knop(t, label, fn) {
+  const b = document.createElement('button'); b.className = 'small'; b.textContent = t;
+  if (label) b.setAttribute('aria-label', label); b.onclick = fn; return b;
+}
+
+function wijzig(id, delta) {
+  const i = items.find(x => x.id === id); if (!i) return;
+  i.aantal = Math.max(0, Math.round((i.aantal + delta) * 100) / 100);
+  bewaar(); render();
+}
+function verwijder(id) {
+  const i = items.find(x => x.id === id);
+  if (i && confirm(`"${i.naam}" verwijderen?`)) { items = items.filter(x => x.id !== id); bewaar(); render(); }
+}
+function start(id) {
+  const i = items.find(x => x.id === id); if (!i) return;
+  bewerkId = id;
+  $('f-naam').value = i.naam; $('f-aantal').value = i.aantal; $('f-eenheid').value = i.eenheid;
+  $('f-loc').value = i.loc; $('f-datum').value = i.datum || '';
+  $('opslaan').textContent = 'Wijzigingen opslaan'; $('annuleer').hidden = false;
+  melding(''); $('f-naam').focus(); window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+function reset() {
+  bewerkId = null; $('f-naam').value = ''; $('f-aantal').value = 1; $('f-datum').value = '';
+  $('opslaan').textContent = 'Product opslaan'; $('annuleer').hidden = true;
+}
+$('annuleer').onclick = () => { reset(); melding(''); };
+$('opslaan').onclick = () => {
+  const naam = $('f-naam').value.trim(), aantal = parseFloat($('f-aantal').value);
+  if (!naam) { melding('Vul een productnaam in.'); $('f-naam').focus(); return; }
+  if (isNaN(aantal) || aantal < 0) { melding('Vul een geldige hoeveelheid in.'); $('f-aantal').focus(); return; }
+  const data = { naam, aantal, eenheid: $('f-eenheid').value, loc: $('f-loc').value, datum: $('f-datum').value };
+  if (bewerkId) { Object.assign(items.find(x => x.id === bewerkId), data); melding('Wijzigingen opgeslagen.'); }
+  else { items.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), ...data }); melding(`"${naam}" toegevoegd.`); }
+  bewaar(); reset(); render();
+};
+
+['z-tekst', 'z-loc', 'z-hb', 'z-sort'].forEach(id => $(id).addEventListener('input', render));
+
+$('export').onclick = () => {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(items, null, 2)], { type: 'application/json' }));
+  a.download = `voorraadkast-${new Date().toISOString().slice(0, 10)}.json`; a.click(); URL.revokeObjectURL(a.href);
+};
+$('import').onclick = () => $('importfile').click();
+$('importfile').onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try {
+      const d = JSON.parse(r.result);
+      if (!Array.isArray(d) || !d.every(x => x && typeof x.naam === 'string' && x.loc)) throw 0;
+      if (!confirm(`${d.length} producten importeren? Dit vervangt je huidige lijst.`)) return;
+      items = d.map(x => ({ id: x.id || Math.random().toString(36).slice(2), naam: x.naam, aantal: +x.aantal || 0, eenheid: x.eenheid || 'stuks', loc: x.loc, datum: x.datum || '' }));
+      bewaar(); render(); melding('Import gelukt.');
+    } catch (err) { melding('Dit bestand kon niet worden gelezen als voorraadlijst.'); }
+  };
+  r.readAsText(f); e.target.value = '';
+};
+render();
+</script>
+</body>
+</html>
