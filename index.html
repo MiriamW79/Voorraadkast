@@ -24,6 +24,7 @@ input,select{width:100%;padding:8px 10px;border:1px solid var(--line);border-rad
 button{cursor:pointer;border:1px solid var(--line);background:var(--card);padding:8px 14px;border-radius:6px}
 button.primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent);font-weight:600}
 button.small{padding:3px 10px}
+button[aria-pressed="true"]{background:var(--accent);color:var(--on-accent);border-color:var(--accent);font-weight:600}
 .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;align-items:center}
 .count{color:var(--mute);margin:0 0 10px}
 .list{display:grid;gap:8px}
@@ -71,8 +72,12 @@ button.small{padding:3px 10px}
    <option value="">Alles</option><option value="verlopen">Verlopen</option><option value="7">Binnen 7 dagen</option>
    <option value="30">Binnen 30 dagen</option><option value="90">Binnen 90 dagen</option><option value="geen">Geen datum</option>
   </select></div>
- <div><label for="z-sort">Sorteren op</label>
-  <select id="z-sort"><option value="datum">Houdbaarheid</option><option value="naam">Product</option><option value="loc">Locatie</option></select></div>
+</div>
+<div class="row" role="group" aria-label="Sorteren">
+ <span class="meta">Sorteren:</span>
+ <button id="s-naam" type="button">Alfabetisch</button>
+ <button id="s-datum" type="button">Houdbaarheid</button>
+ <button id="s-loc" type="button">Locatie</button>
 </div>
 </section>
 
@@ -129,7 +134,7 @@ const getal = n => Number(n).toLocaleString('nl-NL', { maximumFractionDigits: 2 
 
 function filtered() {
   const q = $('z-tekst').value.trim().toLowerCase();
-  const loc = $('z-loc').value, hb = $('z-hb').value, sort = $('z-sort').value;
+  const loc = $('z-loc').value, hb = $('z-hb').value;
   let r = items.filter(i => {
     const d = dagen(i.datum);
     const tekst = `${i.naam} ${i.loc} ${i.datum || ''} ${i.datum ? fmt(i.datum) : ''}`.toLowerCase();
@@ -142,10 +147,13 @@ function filtered() {
   });
   const cmp = {
     naam: (a, b) => a.naam.localeCompare(b.naam, 'nl'),
-    loc: (a, b) => LOCATIES.indexOf(a.loc) - LOCATIES.indexOf(b.loc) || a.naam.localeCompare(b.naam, 'nl'),
-    datum: (a, b) => (a.datum || '9999').localeCompare(b.datum || '9999') || a.naam.localeCompare(b.naam, 'nl')
+    datum: (a, b) => a.datum.localeCompare(b.datum) || a.naam.localeCompare(b.naam, 'nl'),
+    loc: (a, b) => LOCATIES.indexOf(a.loc) - LOCATIES.indexOf(b.loc) || a.naam.localeCompare(b.naam, 'nl')
   };
-  return r.sort(cmp[sort]);
+  return r.sort((a, b) => {
+    if (sortKey === 'datum' && !a.datum !== !b.datum) return a.datum ? -1 : 1;
+    return cmp[sortKey](a, b) * sortDir;
+  });
 }
 
 function render() {
@@ -212,7 +220,21 @@ $('opslaan').onclick = () => {
   bewaar(); reset(); render();
 };
 
-['z-tekst', 'z-loc', 'z-hb', 'z-sort'].forEach(id => $(id).addEventListener('input', render));
+['z-tekst', 'z-loc', 'z-hb'].forEach(id => $(id).addEventListener('input', render));
+
+let sortKey = 'datum', sortDir = 1;
+function sortKnoppen() {
+  [['naam', 'Alfabetisch'], ['datum', 'Houdbaarheid'], ['loc', 'Locatie']].forEach(([k, t]) => {
+    const b = $('s-' + k), actief = sortKey === k;
+    b.setAttribute('aria-pressed', actief);
+    b.textContent = t + (actief ? (sortDir === 1 ? ' ↑' : ' ↓') : '');
+  });
+}
+['naam', 'datum', 'loc'].forEach(k => $('s-' + k).onclick = () => {
+  if (sortKey === k) sortDir = -sortDir; else { sortKey = k; sortDir = 1; }
+  sortKnoppen(); render();
+});
+sortKnoppen();
 
 $('export').onclick = () => {
   const a = document.createElement('a');
